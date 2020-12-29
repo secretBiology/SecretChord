@@ -27,7 +27,7 @@ def _warn(msg):
 def draw_arch(ax, start, end, width=0.2,
               radius=1.0,
               offset=0,
-              color=_chord_pallet.blue(), **kwargs):
+              color=_chord_pallet.blue(), **kwargs) -> Wedge:
     w = Wedge(center=(0, 0),
               r=radius,
               theta1=offset + start,
@@ -41,10 +41,12 @@ def draw_arch(ax, start, end, width=0.2,
 def _color_cycle():
     while True:
         for m in _chord_pallet.get_color_list:
+            if m in [_chord_pallet.white(), _chord_pallet.black()]:
+                continue
             yield m
 
 
-def get_ribbon_points(radius, width, start, end):
+def get_ribbon_points(radius, width, start, end) -> list:
     w = Wedge(center=(0, 0),
               r=radius,
               theta1=start,
@@ -75,7 +77,7 @@ def draw_ribbon(ax,
                 end1, end2,
                 color=_chord_pallet.blue(),
                 alpha=0.6,
-                radius=1.0, width=0.2, gap=0.1, **kwargs):
+                radius=1.0, width=0.2, gap=0.1, **kwargs) -> PathPatch:
     corr_rad = radius - width
     start = get_ribbon_points(corr_rad - gap, width, start1, start2)
     end = get_ribbon_points(corr_rad - gap, width, end1, end2)
@@ -93,10 +95,14 @@ def draw_ribbon(ax,
     verts.append(verts[0])
     codes.extend([Path.CURVE4] * 3)
     pt = Path(verts, codes)
-    ax.add_patch(PathPatch(pt, facecolor=color, alpha=alpha, **kwargs))
+    pt = PathPatch(pt, facecolor=color, alpha=alpha, **kwargs)
+    ax.add_patch(pt)
+    return pt
 
 
-def draw_chord(data, ax=None, order=None,
+def draw_chord(data,
+               ax=None,
+               order=None,
                offset: Union[float, List] = 5.0,
                ribbon_gap: float = 3.0,
                ribbon_kwargs: dict = None,
@@ -112,6 +118,7 @@ def draw_chord(data, ax=None, order=None,
                add_labels: bool = True,
                rotate_labels: bool = True,
                add_label_arrow: bool = False,
+               color_label: bool = False,
                arrowstyle_global: str = "->",
                arrowprops_global: dict = None,
                start_angle: float = 0.0):
@@ -174,6 +181,8 @@ def draw_chord(data, ax=None, order=None,
             colors[n] = next(nc)
 
     wedges = {}
+    ribbons = {}
+    labels = {}
     for i, n in enumerate(nodes):
         kw = {}
         if n in arch_kwargs:
@@ -201,32 +210,31 @@ def draw_chord(data, ax=None, order=None,
         else:
             if d[0] in used:
                 start1 = used[d[0]]
-                start2 = start1 + an
             else:
                 start1 = start_point[d[0]]
-                start2 = start1 + an
-                used[d[0]] = start2 + ribbon_gap
+            start2 = start1 + an
+            used[d[0]] = start2 + ribbon_gap
             if d[1] in used:
                 end1 = used[d[1]]
-                end2 = end1 + an
             else:
                 end1 = start_point[d[1]]
-                end2 = end1 + an
-                used[d[1]] = end2 + ribbon_gap
+            end2 = end1 + an
+            used[d[1]] = end2 + ribbon_gap
 
         key = d[1]
+        if use_source:
+            key = d[0]
         clr = colors[key]
         tp = alpha[key]
-        if use_source:
-            clr = colors[key]
-            tp = alpha[key]
         kw = {"alpha": tp}
         if key in ribbon_kwargs:
             kw = {**kw, **ribbon_kwargs[key]}
-        draw_ribbon(ax, start1, start2, end1, end2,
-                    width=arch_height,
-                    radius=radius,
-                    color=clr, **kw)
+        rb = draw_ribbon(ax, start1, start2, end1, end2,
+                         width=arch_height,
+                         radius=radius,
+                         color=clr, **kw)
+        r_key = f"{d[0]}-{d[1]}-{d[2]}-{len(ribbons)}"
+        ribbons[r_key] = rb
 
     for n in nodes:
         ctr_angle = (wedges[n].theta2 - wedges[n].theta1) / 2 + wedges[
@@ -239,6 +247,8 @@ def draw_chord(data, ax=None, order=None,
         rot = ctr_angle
         cs = f"angle,angleA=0,angleB={ctr_angle}"
 
+        if ctr_angle in [0, 180]:
+            va = "center"
         if 180 > rot >= 90:
             rot = -abs(180 - rot)
         elif 270 > rot >= 180:
@@ -256,30 +266,33 @@ def draw_chord(data, ax=None, order=None,
                                 "arrowstyle": arrowstyle_global}
             if arrowprops_global is not None:
                 kw["arrowprops"] = arrowprops_global
+
+        if color_label:
+            kw["color"] = colors[n]
         if n in label_kwargs:
             kw = {**kw, **label_kwargs[n]}
         tx = n
         if n in label_map:
             tx = label_map[n]
         if add_labels and not add_label_arrow:
-            ax.annotate(tx, xy=(x, y), **kw)
+            a = ax.annotate(tx, xy=(x, y), **kw)
         else:
-            ax.annotate(tx, xy=(x, y),
-                        xytext=(1.3 * radius * np.sign(x), 1.4 * y), **kw)
-
+            a = ax.annotate(tx, xy=(x, y),
+                            xytext=(1.3 * radius * np.sign(x), 1.4 * y), **kw)
+        labels[n] = a
     padding = 1 + padding
-    plt.xlim(-padding * radius, padding * radius)
-    plt.ylim(-padding * radius, padding * radius)
+    ax.set_xlim(-padding * radius, padding * radius)
+    ax.set_ylim(-padding * radius, padding * radius)
     ax.set_aspect(1)
     ax.set_axis_off()
-    plt.show()
+    return wedges, ribbons, labels, ax
 
 
 def run():
     data = [
-        ("a", "b", 5),
-        ("d", "c", 5),
-        ("d2", "something", 15),
+        ("a", "s", 15),
+        ("w", "s", 15),
+        ("t", "s", 15),
     ]
-    draw_chord(data, add_label_arrow=False,
-               rotate_labels=False, label_map={"a": "How is this?"})
+    draw_chord(data)
+    plt.show()
