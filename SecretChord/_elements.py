@@ -147,6 +147,13 @@ class Ribbon(CommonElements):
                                  "it.")
         return self._path
 
+    def adjust_radia(self, new_radius, new_width):
+        if new_radius - new_width < self.radius_start - self.gap:
+            self.radius_start = new_radius - new_width - self.gap
+
+        if new_radius - new_width < self.radius_end - self.gap:
+            self.radius_end = new_radius - new_width - self.gap
+
     def get_points(self, start, end, gap, radius):
         w = Wedge(self.center, radius - gap - self.gap,
                   start, end, self.gap)

@@ -17,7 +17,7 @@ class ChordDiagram:
         self._assembler = None
 
         self._radius = 2
-        self.rotation = 0
+        self._rotation = 0
         self.reverse_color = False
 
         self._arch_gap = None
@@ -25,8 +25,8 @@ class ChordDiagram:
         self.arch_order = None
         self.arch_alpha = 1
 
-        self.ribbon_margin_start = 0.3
-        self.ribbon_margin_end = 0.3
+        self._ribbon_margin_start = 0.3
+        self._ribbon_margin_end = 0.3
         self.ribbon_alpha = 0.6
 
         self._label_hide = False
@@ -48,11 +48,29 @@ class ChordDiagram:
         self.graph.reverse_color = self.reverse_color
         self.graph.order = self.arch_order
         self.graph.rotation = self.rotation
-        self.graph.margin_start = self.ribbon_margin_start
-        self.graph.margin_end = self.ribbon_margin_end
         self.graph.arch_alpha = self.arch_alpha
         self.graph.ribbon_alpha = self.ribbon_alpha
         self._update_text()
+
+    @property
+    def ribbon_margin_start(self):
+        return self._ribbon_margin_start
+
+    @ribbon_margin_start.setter
+    def ribbon_margin_start(self, value: float):
+        self._ribbon_margin_start = value
+        for fl in self.graph.flows.values():
+            fl.ribbon.gap_start = value
+
+    @property
+    def ribbon_margin_end(self):
+        return self._ribbon_margin_end
+
+    @ribbon_margin_end.setter
+    def ribbon_margin_end(self, value: float):
+        self._ribbon_margin_end = value
+        for fl in self.graph.flows.values():
+            fl.ribbon.gap_end = value
 
     def _update_text(self):
         for lb in self.graph.labels.values():
@@ -83,6 +101,8 @@ class ChordDiagram:
         self._arch_height = value
         for a in self.graph.arch.values():
             a.width = value
+        for fl in self.graph.flows.values():
+            fl.ribbon.adjust_radia(self.radius, value)
 
     @radius.setter
     def radius(self, value: float):
@@ -103,6 +123,16 @@ class ChordDiagram:
                 lb.hide()
             else:
                 lb.show()
+
+    @property
+    def rotation(self):
+        return self._rotation
+
+    @rotation.setter
+    def rotation(self, value):
+        self._rotation = value
+        self.graph.rotation = value
+        self.graph.regenerate_angles()
 
     def rotate(self, angle):
         self.rotation = angle
@@ -199,13 +229,15 @@ def run():
         ("a", "b", 2),
         ("d", "c", 5),
         ("c", "b", 5),
+        ("cy", "b", 1),
+        ("cy", "fc", 1),
         ("c", "fc", 10),
         ("2sdf", "fc", 5),
     ]
     cd = ChordDiagram(data)
-    cd.radius = 10
+    cd.radius = 5
     cd.arch_gap = 2
-    cd.arch_height = 2
+    cd.rotation = 90
     cd.draw()
     plt.tight_layout()
     plt.show()
