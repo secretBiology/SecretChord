@@ -8,6 +8,6 @@
 #
 
 
-from SecretChord.base import run
+from SecretChord import run
 
 run()
