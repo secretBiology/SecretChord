@@ -8,6 +8,6 @@
 #
 
 
-from SecretChord import run
+from SecretChord.test_elements import run
 
 run()

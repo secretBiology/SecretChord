@@ -239,7 +239,7 @@ class Flow:
 
 
 class Label:
-    def __init__(self, arch_id: str, arch: Arch, **kwargs):
+    def __init__(self, arch_id: str, archs: Arch, **kwargs):
         self.arch_id = arch_id
         self.arch = arch
         self.gap = 1.05
