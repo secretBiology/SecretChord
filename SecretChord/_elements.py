@@ -7,28 +7,18 @@
 #  in native matplotlib framework
 #
 
-import matplotlib.pyplot as plt
+from collections import OrderedDict
+
 import numpy as np
 from matplotlib.patches import Wedge, Path, PathPatch
+from matplotlib.text import Annotation
 
 
-class CommonElements:
-    def __init__(self, radius: float = None,
-                 width: float = None, ):
-        self._radius = None
-        self._width = None
+class CommonMethods:
+    def __init__(self):
         self._center = None
-        self._is_hidden = False
-
-    @property
-    def radius(self):
-        if self._radius is None:
-            self._radius = 1
-        return self._radius
-
-    @radius.setter
-    def radius(self, value: float):
-        self._radius = value
+        self._is_visible = True
+        self.kwargs = {}
 
     @property
     def center(self):
@@ -36,127 +26,147 @@ class CommonElements:
             self._center = (0, 0)
         return self._center
 
-    @property
-    def width(self):
-        if self._width is None:
-            self._width = 0.3
-        return self._width
-
-    @width.setter
-    def width(self, value: float):
-        self._width = value
+    @center.setter
+    def center(self, value: tuple):
+        self._center = value
 
     def hide(self):
-        self._is_hidden = True
+        self._is_visible = False
 
     def show(self):
-        self._is_hidden = False
+        self._is_visible = True
 
     @property
-    def is_hidden(self):
-        return self._is_hidden
-
-
-class Arch(CommonElements):
-    def __init__(self, start: float, end: float, **kwargs):
-        super().__init__()
-        self.start = start
-        self.end = end
-        self.kwargs = kwargs
-        self._wedge = None
-        self._current = 0
+    def is_visible(self):
+        return self._is_visible
 
     def update(self, **kwargs):
         self.kwargs = {**self.kwargs, **kwargs}
 
-    def color(self, value):
-        self.update(facecolor=value)
+
+class ArchData:
+    def __init__(self):
+        self.radius = 1
+        self.start_angle = 0
+        self.end_angle = 0
+        self.height = 0.1
+        self.kwargs = {}
+
+
+class Arch(CommonMethods):
+    def __init__(self, radius: float,
+                 start_angle: float, end_angle: float, *,
+                 height: float,
+                 **kwargs):
+        super().__init__()
+        self.radius = radius
+        self.start_angle = start_angle
+        self.end_angle = end_angle
+        self.kwargs = kwargs
+        self.height = height
+
+        self._wedge = None
+        self._input = OrderedDict()
+        self._output = OrderedDict()
 
     def __repr__(self):
-        return f"Arch({round(self.start, 2)},{round(self.end, 2)})"
-
-    @property
-    def used(self):
-        return self._current
-
-    @property
-    def available_angle(self) -> float:
-        return self.end - self.start
-
-    def angle(self, fraction: float):
-        return self.available_angle * fraction
+        return f"Arch({self.start_angle},{self.end_angle})"
 
     @property
     def wedge(self) -> Wedge:
         if self._wedge is None:
-            raise AttributeError(
-                "You should draw the wedge before accessing it.")
+            self._wedge = Wedge(center=self.center,
+                                r=self.radius,
+                                theta1=self.start_angle, theta2=self.end_angle,
+                                width=self.height,
+                                **self.kwargs)
         return self._wedge
 
-    def update_usage(self, used):
-        self._current += used
+    @property
+    def inputs(self) -> OrderedDict:
+        return self._input
 
-    def draw(self, ax: plt.Axes):
-        if self.is_hidden:
-            return
-        w = Wedge(self.center, self.radius, self.start, self.end, self.width,
-                  **self.kwargs)
-        w = ax.add_patch(w)
-        self._wedge = w
+    @property
+    def angle(self) -> float:
+        return self.end_angle - self.start_angle
+
+    @property
+    def outputs(self) -> OrderedDict:
+        return self._output
+
+    def add_input_ribbon(self, ribbon, amount):
+        self._input[ribbon] = amount
+
+    def add_output_ribbon(self, ribbon, amount):
+        self._output[ribbon] = amount
+
+    def get_order(self):
+        nodes_val = list(self.inputs.values())
+        nodes_val.extend(list(self.outputs.values()))
+        total = sum(nodes_val)
+        nodes_val = [x * self.angle / total for x in nodes_val]
+        return nodes_val[:len(self.inputs)], nodes_val[len(self.inputs):]
+
+    def get_angle(self, node, is_output):
+        val_in, val_out = self.get_order()
+        current = self.start_angle
+        val = val_in
+        val_ref = self.inputs
+        if is_output:
+            val_in.append(0)  # To avoid empty sum
+            current += sum(val_in)
+            val = val_out
+            val_ref = self.outputs
+
+        for v in val_ref:
+            if v == node:
+                return current, current + val[0]
+            else:
+                current += val[0]
+                val.pop(0)
+
+        raise AttributeError("Wrong Ribbon direction or Wrong Arch")
 
 
-class Ribbon(CommonElements):
-    def __init__(self, start1: float, start2: float,
-                 end1: float, end2: float,
-                 gap_start: float, gap_end: float,
-                 radius_start: float, radius_end: float,
+class Ribbon(CommonMethods):
+    def __init__(self, start_arch: Arch, end_arch: Arch, *,
+                 start_radius: float, end_radius: float,
+                 start_margin: float, end_margin: float,
                  **kwargs):
         super().__init__()
-        self.start1 = start1
-        self.start2 = start2
-        self.end1 = end1
-        self.end2 = end2
-        self.gap_start = gap_start
-        self.gap_end = gap_end
-        self.radius_start = radius_start
-        self.radius_end = radius_end
+        self.start_arch = start_arch
+        self.end_arch = end_arch
+        self.start_margin = start_margin
+        self.end_margin = end_margin
+        self._start_radius = start_radius
+        self._end_radius = end_radius
         self.kwargs = kwargs
-        self._gap = None
-        self._path = None
-
-    def update(self, **kwargs):
-        self.kwargs = {**self.kwargs, **kwargs}
-
-    def color(self, value):
-        self.update(facecolor=value)
+        self._patch = None
+        self.bend_center = None
 
     @property
-    def gap(self):
-        if self._gap is None:
-            self._gap = 0.1
-        return self._gap
+    def start_radius(self):
+        if self._start_radius is None:
+            return self.start_arch.radius
+        return self._start_radius
 
-    @gap.setter
-    def gap(self, value: float):
-        self._gap = value
+    @start_radius.setter
+    def start_radius(self, value: float):
+        self._start_radius = value
 
     @property
-    def path(self) -> PathPatch:
-        if self._path is None:
-            raise AttributeError("You should draw the ribbon before accessing "
-                                 "it.")
-        return self._path
+    def end_radius(self):
+        if self._end_radius is None:
+            return self.end_arch.radius
+        return self._end_radius
 
-    def adjust_radia(self, new_radius, new_width):
-        if new_radius - new_width < self.radius_start - self.gap:
-            self.radius_start = new_radius - new_width - self.gap
+    @end_radius.setter
+    def end_radius(self, value: float):
+        self._end_radius = value
 
-        if new_radius - new_width < self.radius_end - self.gap:
-            self.radius_end = new_radius - new_width - self.gap
-
-    def get_points(self, start, end, gap, radius):
-        w = Wedge(self.center, radius - gap - self.gap,
-                  start, end, self.gap)
+    def get_points(self, start, end, radius, margin, arch: Arch):
+        er = radius - margin - arch.height  # Effective Radius
+        w = Wedge(arch.center, er, start, end)
         data = []
         first = None
         for k in w.get_path().iter_segments():
@@ -176,173 +186,187 @@ class Ribbon(CommonElements):
         ap.insert(0, first[0])
         return ap
 
-    def draw(self, ax: plt.Axes):
-        if self.is_hidden:
-            return
-        start_loc = self.get_points(self.start1, self.start2,
-                                    self.gap_start, self.radius_start)
-        end_loc = self.get_points(self.end1, self.end2, self.gap_end,
-                                  self.radius_end)
+    def get_path(self, start_loc, end_loc):
+        bend = self.bend_center
+        if bend is None:
+            bend = self.center
         verts = [start_loc[0]]
         codes = [Path.MOVETO]
         for s in start_loc[1:]:
             verts.append(s)
             codes.append(Path.CURVE4)
-        verts.extend([(0, 0)] * 2)
+        verts.extend([bend] * 2)
         codes.extend([Path.CURVE4] * 2)
         for e in end_loc:
             verts.append(e)
             codes.append(Path.CURVE4)
-        verts.extend([(0, 0)] * 2)
+        verts.extend([bend] * 2)
         verts.append(verts[0])
         codes.extend([Path.CURVE4] * 3)
-        pt = Path(verts, codes)
-        pt = PathPatch(pt, **self.kwargs)
-        pt = ax.add_patch(pt)
-        self._path = pt
-
-
-class Flow:
-    def __init__(self, arch1: Arch, arch2: Arch,
-                 start_fraction: float, end_fraction: float,
-                 **kwargs):
-        self.arch1 = arch1
-        self.arch2 = arch2
-        self.start_fraction = start_fraction
-        self.end_fraction = end_fraction
-        self.margin_start = 0.3
-        self.margin_end = 0.3
-        self.kwargs = kwargs
-        self._ribbon = None
-
-    @staticmethod
-    def get_angles(a: Arch, used):
-        s1 = a.start + a.available_angle * a.used
-        s2 = s1 + a.angle(used)
-        a.update_usage(used)
-        return s1, s2
+        return Path(verts, codes)
 
     @property
-    def ribbon(self) -> Ribbon:
-        if self._ribbon is None:
-            s1, s2 = self.get_angles(self.arch1, self.start_fraction)
-            e1, e2 = self.get_angles(self.arch2, self.end_fraction)
+    def patch(self):
+        if self._patch is None:
+            sp1, sp2 = self.start_arch.get_angle(self, False)
+            ep1, ep2 = self.end_arch.get_angle(self, True)
 
-            self._ribbon = Ribbon(s1, s2, e1, e2,
-                                  self.margin_start, self.margin_end,
-                                  self.arch1.radius, self.arch2.radius,
-                                  **self.kwargs)
-        return self._ribbon
+            sp = self.get_points(sp1, sp2, self.start_radius,
+                                 self.start_margin, self.start_arch)
 
-    def draw(self, ax: plt.Axes):
-        self.ribbon.draw(ax)
+            ep = self.get_points(ep1, ep2, self.end_radius,
+                                 self.end_margin, self.end_arch)
+
+            pt = self.get_path(sp, ep)
+            self._patch = PathPatch(pt, **self.kwargs)
+        return self._patch
 
 
-class Label:
-    def __init__(self, arch_id: str, archs: Arch, **kwargs):
-        self.arch_id = arch_id
+class ArchLabel(CommonMethods):
+    def __init__(self, arch_key: str, arch: Arch):
+        super().__init__()
+
+        self.arch_key = arch_key
         self.arch = arch
-        self.gap = 1.05
         self.rotate = True
+
+        self._text = None
+        self._radius = None
+        self._angle = None
+        self._annotation = None
+        self._ha = None
+        self._va = None
+        self._angle = None
 
         self.add_arrow = False
         self.arrowstyle = "->"
         self.arrow_label_x_factor = 1.2
         self.arrow_label_y_factor = 1.2
-        self.kwargs = kwargs
+        self.rotation_mode = "anchor"
+        self.wrap_words = np.inf
+        self.label_gap = 0.02
 
-        self._is_hidden = False
-        self._text = None
-        self._ha = None
-        self._va = None
-        self._angle = None
+    @property
+    def radius(self):
+        if self._radius is None:
+            return self.arch.radius + self.label_gap
+        return self._radius
 
-    def update(self, **kwargs):
-        self.kwargs = {**self.kwargs, **kwargs}
+    @radius.setter
+    def radius(self, value: float):
+        self._radius = value
+
+    @property
+    def angle(self):
+        if self._angle is None:
+            return self.arch.start_angle + (self.arch.end_angle -
+                                            self.arch.start_angle) / 2
+        return self._angle
+
+    @angle.setter
+    def angle(self, value: float):
+        self._angle = value
 
     @property
     def text(self):
         if self._text is None:
-            return self.arch_id
+            return self.arch_key
         return self._text
 
     @text.setter
-    def text(self, value):
+    def text(self, value: str):
         self._text = value
-
-    @property
-    def is_hidden(self):
-        return self._is_hidden
-
-    def hide(self):
-        self._is_hidden = True
-
-    def show(self):
-        self._is_hidden = False
-
-    def get_xy(self, angle):
-        x = np.cos(np.deg2rad(angle)) * (self.arch.radius * self.gap)
-        y = np.sin(np.deg2rad(angle)) * (self.arch.radius * self.gap)
-        return x, y
 
     def ha(self, x):
         if self._ha is not None:
             return self._ha
-        return {-1: "right", 1: "left", 0: "center"}[int(np.sign(x))]
 
-    def va(self, y):
+        return {-1: "right", 1: "left", 0: "center"}[int(np.sign(
+            x - self.center[0]))]
+
+    def va(self):
         if self._va is not None:
             return self._va
-        return {-1: "top", 1: "bottom", 0: "center"}[int(np.sign(y))]
+        return "center"
 
-    def rotation(self, angle):
+    def rotation(self):
         if not self.rotate:
             return None
         if self._angle is not None:
             return self._angle
-        if 180 > angle >= 90:
-            return -abs(180 - angle)
-        elif 270 > angle >= 180:
-            return abs(180 - angle)
-        return angle
+        if 180 > self.angle > 90:
+            return -abs(180 - self.angle)
+        elif 270 >= self.angle >= 180:
+            return abs(180 - self.angle)
+        return self.angle
+
+    def get_xy(self):
+        x = np.cos(np.deg2rad(self.angle)) * self.radius + self.arch.center[0]
+        y = np.sin(np.deg2rad(self.angle)) * self.radius + self.arch.center[1]
+        return x, y
+
+    def wrapped_text(self):
+        if self.wrap_words == 0:
+            return self.text
+        word_list = self.text.split(" ")
+        adjusted_text = ""
+        counter = 0
+        for w in word_list:
+            adjusted_text += w
+            adjusted_text += " "
+            counter += 1
+            if counter >= self.wrap_words:
+                adjusted_text = adjusted_text.strip()
+                adjusted_text += "\n"
+                counter = 0
+
+        return adjusted_text.strip()
 
     @staticmethod
     def get_connection_style(angle):
+        if angle == 180 or angle == 0:
+            return "angle3"
         return f"angle,angleA=0,angleB={angle}"
 
-    def get_arrow_props(self, angle):
+    def get_arrow_props(self):
         if not self.add_arrow:
             return {}
         return {
-            "connectionstyle": self.get_connection_style(angle),
+            "connectionstyle": self.get_connection_style(self.angle),
             "arrowstyle": self.arrowstyle}
 
-    def _draw_regular(self, ax, x, y, ang):
-        kw = {"ha": self.ha(x), "va": self.va(y),
-              "rotation": self.rotation(ang)}
+    def _regular(self):
+        x, y = self.get_xy()
+        kw = {"ha": self.ha(x), "va": self.va(),
+              "rotation_mode": self.rotation_mode,
+              "annotation_clip": False,
+              "rotation": self.rotation(),
+              }
         kw = {**kw, **self.kwargs}
-        ax.annotate(self.text,
-                    xy=(x, y), **kw)
+        self._annotation = Annotation(self.wrapped_text(),
+                                      xy=(x, y),
+                                      **kw)
 
-    def _draw_arrow(self, ax, x, y, ang):
+    def _with_arrow(self):
+        x, y = self.get_xy()
         kw = {"ha": self.ha(x), "va": "center",
-              "arrowprops": self.get_arrow_props(ang)}
+              "annotation_clip": False,
+              "rotation_mode": self.rotation_mode,
+              "arrowprops": self.get_arrow_props()}
         kw = {**kw, **self.kwargs}
-        ax.annotate(self.text,
-                    xy=(x, y),
-                    xytext=(
-                        self.arrow_label_x_factor * self.arch.radius * np.sign(
-                            x),
-                        self.arrow_label_y_factor * y
-                    ), **kw)
 
-    def draw(self, ax: plt.Axes):
-        if self.is_hidden:
-            return
-        ang = self.arch.start + (self.arch.end - self.arch.start) / 2
-        x, y = self.get_xy(ang)
+        t_x = self.arrow_label_x_factor * self.arch.radius * np.sign(x) + \
+              self.arch.center[0]
+        t_y = self.arrow_label_y_factor * y + self.arch.center[1]
+        self._annotation = Annotation(self.wrapped_text(),
+                                      xy=(x, y),
+                                      xytext=(t_x, t_y), **kw)
 
-        if self.add_arrow:
-            self._draw_arrow(ax, x, y, ang)
-        else:
-            self._draw_regular(ax, x, y, ang)
+    @property
+    def annotation(self):
+        if self._annotation is None:
+            if self.add_arrow:
+                self._with_arrow()
+            else:
+                self._regular()
+        return self._annotation

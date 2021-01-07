@@ -6,198 +6,236 @@
 #  SecretChord : A simple library to plot the Chord Diagram
 #  in native matplotlib framework
 #
-#  Basic Assembler
+#  All basic elements
 
 from collections import defaultdict
 from typing import Dict
 
 import matplotlib.pyplot as plt
 from SecretColors import Palette
-from SecretChord._elements import Flow, Arch, Label
+
+from SecretChord._elements import *
 
 
-class Assembler:
-    def __init__(self, data: list):
-        self.data = data
-
-        self._gap = None
-        self._amount = None
-        self._no_of_ribbons = None
-        self._start_angle = None
-        self._end_angle = None
+class Track:
+    def __init__(self):
+        self._arch_amounts = defaultdict(int)
         self._arch = None
-        self._flows = None
-        self._colors = None
-        self._arch_order = None
-        self._labels = None
+        self._order = []
+        self._ribbons = None
+        self._arch_labels = None
+        self._data = []
+        self._arch_colors = None
+
+        self.arch_gap_angle = 5
+        self.arch_height = 0.1
+        self.arch_alpha = 1
+        self.arch_kwargs = {}
 
         self.rotation = 0
-        self.reverse_color = False
-        self.radius = None
-        self.order = None
+        self._radius = 1
+        self.center = (0, 0)
+        self.max_angle = 360
+
+        self.hide_ribbons = False
+        self.hide_arch_labels = False
+
+        self.ribbon_start_margin = 0.05
+        self.ribbon_end_margin = 0.05
+        self.ribbon_color_from_source = True
         self.ribbon_alpha = 0.6
-        self.arch_alpha = 1
-        self.margin_start = 0.3
-        self.margin_end = 0.3
+        self.ribbon_kwargs = {}
+
+        self.arch_label_arrows = False
+        self.arch_label_rotate = True
+        self.arch_label_colored = False
+        self.arch_label_gap = 0.02
+        self.arch_label_wrap_words = np.inf
+        self.arch_label_kwargs = {}
+        self._arch_label_mapping = {}
 
     @property
-    def gap(self) -> float:
-        if self._gap is None:
-            self._gap = 0.1
-        return self._gap
+    def radius(self):
+        return self._radius
 
-    @gap.setter
-    def gap(self, value: float):
-        self._gap = value
+    @radius.setter
+    def radius(self, value: float):
+        self._radius = value
 
-    @property
-    def colors(self) -> dict:
-        if self._colors is None:
-            p = Palette()
-            if len(p.get_color_list) <= len(self.amount):
-                self._colors = {x1: x2 for x1, x2 in
-                                zip(self.arch_order,
-                                    p.random(no_of_colors=len(self.amount)))}
-            else:
-                self._colors = {x1: x2 for x1, x2 in
-                                zip(self.arch_order,
-                                    p.get_color_list[:len(self.amount)])}
-        return self._colors
+    def add_flow(self, data):
+        self._data.append(data)
+        self._arch_amounts[data[0]] += data[2]
+        self._arch_amounts[data[1]] += data[2]
+        if data[0] not in self._order:
+            self._order.append(data[0])
+        if data[1] not in self._order:
+            self._order.append(data[1])
 
-    def map_colors(self, mapping: dict):
-        for k, v in mapping.items():
-            if k in self.colors:
-                self._colors[k] = v
-
-    def _generate_amount(self):
-        k = defaultdict(list)
-        for d in self.data:
-            k[d[0]].append(d[2])
-            k[d[1]].append(d[2])
-        self._no_of_ribbons = {m: len(n) for m, n in k.items()}
-        self._amount = {m: sum(n) for m, n in k.items()}
-        if self.order is None:
-            self._arch_order = [x for x in k.keys()]
-        else:
-            self._arch_order = [x for x in self.order if x in k.keys()]
-            tmp = [x for x in k.keys() if x not in self.order]
-            self._arch_order.extend(tmp)
+    def add_data(self, data):
+        for d in data:
+            self.add_flow(d)
 
     @property
-    def amount(self) -> dict:
-        if self._amount is None:
-            self._generate_amount()
-        return self._amount
+    def order(self):
+        tmp = [x for x in self._order if x in self._arch_amounts.keys()]
+        for k in self._arch_amounts.keys():
+            if k not in tmp:
+                tmp.append(k)
+        return tmp
 
-    @property
-    def arch_order(self) -> list:
-        if self._arch_order is None:
-            self._generate_amount()
-        return self._arch_order
-
-    @property
-    def no_of_ribbons(self) -> dict:
-        if self._no_of_ribbons is None:
-            self._generate_amount()
-        return self._no_of_ribbons
-
-    def regenerate_angles(self):
-        self._start_angle = None
-        self._end_angle = None
-        for k, a in self.arch.items():
-            a.start = self.arch_start[k]
-            a.end = self.arch_end[k]
-
-    def regenerate_radius(self):
-        for a in self.arch.values():
-            a.radius = self.radius
-
-    def _generate_angles(self):
-        if self._start_angle is None or self._end_angle is None:
-            gp = self.gap * len(self.amount)
-            total = gp + sum(self.amount.values())
-            agl_start = {}
-            agl_end = {}
-            current = self.rotation
-            gp = self.gap * 360 / total
-            for k in self.arch_order:
-                agl_start[k] = current
-                current += (self.amount[k] * 360 / total)
-                agl_end[k] = current
-                current += gp
-            self._start_angle = agl_start
-            self._end_angle = agl_end
-
-    @property
-    def arch_start(self) -> dict:
-        if self._start_angle is None:
-            self._generate_angles()
-        return self._start_angle
-
-    @property
-    def arch_end(self) -> dict:
-        if self._end_angle is None:
-            self._generate_angles()
-        return self._end_angle
+    @order.setter
+    def order(self, value: list):
+        self._order = value
 
     @property
     def arch(self) -> Dict[str, Arch]:
         if self._arch is None:
-            tk = {}
-            for k in self.arch_order:
-                kw = {"facecolor": self.colors[k], "alpha": self.arch_alpha}
-                a = Arch(self.arch_start[k],
-                         self.arch_end[k], **kw)
-                a.radius = self.radius
-                tk[k] = a
-            self._arch = tk
+            raise ValueError("Please use 'generate_elements' before "
+                             "accessing arch")
         return self._arch
 
-    def get_key(self, data_entry):
-        return f"{data_entry[0]}-{data_entry[1]}-{data_entry[2]}-" \
-               f"{self.data.index(data_entry)}"
-
-    def get_flow(self, data_entry) -> Flow:
-        return self.flows[self.get_key(data_entry)]
+    @property
+    def ribbons(self) -> Dict[str, Ribbon]:
+        if self._ribbons is None:
+            raise ValueError("Please use 'generate_elements' before "
+                             "accessing ribbons")
+        return self._ribbons
 
     @property
-    def flows(self):
-        if self._flows is None:
-            rb = {}
-            for d in self.data:
-                dir_key = d[0]
-                if self.reverse_color:
-                    dir_key = d[1]
-
-                start = self.arch[d[0]]
-                end = self.arch[d[1]]
-                s_total = self.amount[d[0]]
-                e_total = self.amount[d[1]]
-                start_frac = d[2] / s_total
-                end_frac = d[2] / e_total
-                key = f"{d[0]}-{d[1]}-{d[2]}-{len(rb)}"
-                kw = {"facecolor": self.colors[dir_key],
-                      "alpha": self.ribbon_alpha}
-                f = Flow(start, end, start_frac, end_frac, **kw)
-                f.margin_start = self.margin_start
-                f.margin_end = self.margin_end
-                rb[key] = f
-            self._flows = rb
-        return self._flows
+    def arch_labels(self) -> Dict[str, ArchLabel]:
+        if self._arch_labels is None:
+            raise ValueError("Please use 'generate_elements' before "
+                             "accessing arch_labels")
+        return self._arch_labels
 
     @property
-    def labels(self):
-        if self._labels is None:
-            tk = {}
-            for a in self.arch:
-                tk[a] = Label(a, self.arch[a])
-            self._labels = tk
-        return self._labels
+    def arch_colors(self):
+        if self._arch_colors is None:
+            self._arch_colors = {}
+        return self._arch_colors
+
+    @arch_colors.setter
+    def arch_colors(self, color_dictionary: dict):
+        self._arch_colors = color_dictionary
+
+    def generate_elements(self):
+        amount = []
+        keys = []
+        for k in self.order:
+            amount.append(self._arch_amounts[k])
+            keys.append(k)
+        total = sum(amount)
+        gap_amount = self.arch_gap_angle * len(self._arch_amounts.keys())
+
+        if gap_amount >= self.max_angle:
+            raise ValueError(
+                f"Total Gap amount exceeded 'max_angle' ({self.max_angle} "
+                f"degrees), please reduce the 'arch_gap_angle'. Current "
+                f"gap amount is {self.arch_gap_angle}")
+
+        available_angle = self.max_angle - gap_amount
+        amount = [x * available_angle / total for x in amount]
+
+        current = self.rotation
+        all_arc = {}
+        all_arch_labels = {}
+        all_ribbons = {}
+
+        cc = Palette().cycle()
+
+        for i, arc in enumerate(keys):
+            # Arch
+            if arc not in self.arch_colors:
+                self._arch_colors[arc] = next(cc)
+            kwa = {"fc": self.arch_colors[arc], "alpha": self.arch_alpha}
+            kwa = {**kwa, **self.arch_kwargs}
+            a = Arch(self.radius, current, current + amount[i],
+                     height=self.arch_height, **kwa)
+            a.center = self.center
+            all_arc[arc] = a
+            # Labels
+            arl = ArchLabel(arc, all_arc[arc])
+            arl.add_arrow = self.arch_label_arrows
+            arl.rotate = self.arch_label_rotate
+            arl.wrap_words = self.arch_label_wrap_words
+            arl.label_gap = self.arch_label_gap
+            arl.center = self.center
+            if arc in self._arch_label_mapping:
+                arl.text = self._arch_label_mapping[arc]
+            if self.arch_label_colored:
+                arl.update(color=self.arch_colors[arc])
+            arl.update(**self.arch_label_kwargs)
+            all_arch_labels[arc] = arl
+            current += amount[i] + self.arch_gap_angle
+            if current >= 360:
+                current = current % 360
+
+        # Ribbons
+        for d in self._data:
+            a1 = all_arc[d[0]]
+            a2 = all_arc[d[1]]
+            color_key = d[0]
+            if not self.ribbon_color_from_source:
+                color_key = d[1]
+            kwr = {"fc": self.arch_colors[color_key],
+                   "alpha": self.ribbon_alpha}
+            kwr = {**kwr, **self.ribbon_kwargs}
+            rb = Ribbon(a1, a2,
+                        start_radius=None,
+                        end_radius=None,
+                        start_margin=self.ribbon_start_margin,
+                        end_margin=self.ribbon_end_margin, **kwr)
+
+            rb.center = self.center
+
+            r_key = f"{d}-{len(all_ribbons)}"
+            a2.add_output_ribbon(rb, d[2])
+            a1.add_input_ribbon(rb, d[2])
+            all_ribbons[r_key] = rb
+
+        self._arch = all_arc
+        self._ribbons = all_ribbons
+        self._arch_labels = all_arch_labels
+
+    def get_arch(self, key) -> Arch:
+        if self._arch is None:
+            self.generate_elements()
+        return self.arch[key]
+
+    def get_ribbon(self, data_entry, index) -> Ribbon:
+        if self._ribbons is None:
+            self.generate_elements()
+        key = f"{data_entry}-{index}"
+        return self.ribbons[key]
+
+    def get_arch_label(self, key) -> ArchLabel:
+        if self._arch_labels is None:
+            self.generate_elements()
+        return self.arch_labels[key]
+
+    def update_arch(self, **kwargs):
+        self.arch_kwargs = {**self.arch_kwargs, **kwargs}
+
+    def update_ribbons(self, **kwargs):
+        self.ribbon_kwargs = {**self.ribbon_kwargs, **kwargs}
+
+    def update_arch_labels(self, **kwargs):
+        self.arch_label_kwargs = {**self.arch_label_kwargs, **kwargs}
+
+    def map_arch_labels(self, mapping_dictionary: dict):
+        self._arch_label_mapping = mapping_dictionary
 
     def draw(self, ax: plt.Axes):
-        for a in self.arch.values():
-            a.draw(ax)
-        for rb in self.flows.values():
-            rb.draw(ax)
-        for tx in self.labels.values():
-            tx.draw(ax)
+        if self._arch is None:
+            self.generate_elements()
+        for t in self.arch.values():
+            if t.is_visible:
+                ax.add_patch(t.wedge)
+        if not self.hide_ribbons:
+            for rb in self.ribbons.values():
+                if rb.is_visible:
+                    ax.add_patch(rb.patch)
+        if not self.hide_arch_labels:
+            for al in self.arch_labels.values():
+                if al.is_visible:
+                    ax.add_artist(al.annotation)
