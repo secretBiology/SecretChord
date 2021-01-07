@@ -23,7 +23,7 @@ class CommonElements:
     @property
     def radius(self):
         if self._radius is None:
-            self._radius = 2
+            self._radius = 1
         return self._radius
 
     @radius.setter
