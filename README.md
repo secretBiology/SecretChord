@@ -15,4 +15,10 @@ Beta version is available for testing. Install by following command,
     pip install SecretChord
 
 
+Creating chord diagrams is as simple as following,
+
+    from SecretChord import ChordDiagram
+    data = [("a", "b", 2), ("a", "c", 5), ("c", "d", 4)]
+    ChordDiagram(data).show()
+
 Please share your feedback :)

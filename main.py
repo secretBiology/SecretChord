@@ -35,3 +35,24 @@ def run():
     cd.draw(pad_factor=1.5)
     plt.tight_layout()
     plt.show()
+
+run()
+from SecretChord import Arch, Ribbon
+
+# # Creates Arch
+# ar1 = Arch(1, 0, 20, height=0.2)
+# ar2 = Arch(1, 50, 70, height=0.2)
+# # Create Ribbon
+# rb = Ribbon(ar1, ar2, start_radius=1, end_radius=1,
+#             start_margin=0.1, end_margin=0.1)
+# # Add Ribbons to Arch
+# # Assuming data tuple is (ar1, ar2, 1)
+# ar1.add_output_ribbon(rb, 1)
+# ar2.add_input_ribbon(rb, 1)
+# _, ax = plt.subplots()
+# ax.add_patch(ar1.wedge)
+# ax.add_patch(ar2.wedge)
+# ax.add_patch(rb.patch)
+# ax.set_aspect(1)
+# plt.savefig("arch.png")
+# plt.show()

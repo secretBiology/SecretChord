@@ -15,13 +15,32 @@ from matplotlib.text import Annotation
 
 
 class CommonMethods:
+    """
+    Generic Class to generate common methods for all the elements
+
+    .. danger::
+       DO NOT use it in your workflow unless you are constructing your own
+       custom class
+
+    """
+
     def __init__(self):
         self._center = None
         self._is_visible = True
         self.kwargs = {}
 
     @property
-    def center(self):
+    def center(self) -> tuple:
+        """
+        Center around which :class:`~SecretChord.Arch` is created or
+        :class:`~SecretChord.Ribbon` is bent. This will be ignored for
+        :class:`~SecretChord.ArchLabel`  as it will use corresponding
+        :class:`~SecretChord.Arch`'s center internally.
+
+        Default is (0,0).
+
+        :return: tuple (x,y) representing x and y coordinates of the center
+        """
         if self._center is None:
             self._center = (0, 0)
         return self._center
@@ -31,33 +50,83 @@ class CommonMethods:
         self._center = value
 
     def hide(self):
+        """
+        Hide element from the graph.
+        """
         self._is_visible = False
 
     def show(self):
+        """
+        Show element in the graph
+        """
         self._is_visible = True
 
     @property
-    def is_visible(self):
+    def is_visible(self) -> bool:
+        """ Is current object visible on the graph?
+        :return: True if yes, otherwise False
+        """
         return self._is_visible
 
     def update(self, **kwargs):
+        """
+        Update the named parameter which will be passed to corresponding
+        matplotlib object.
+
+        :param kwargs: named parameters
+        """
         self.kwargs = {**self.kwargs, **kwargs}
 
 
-class ArchData:
-    def __init__(self):
-        self.radius = 1
-        self.start_angle = 0
-        self.end_angle = 0
-        self.height = 0.1
-        self.kwargs = {}
-
-
 class Arch(CommonMethods):
+    """
+    Arch resides on the periphery of the ChordDiagram and represents the
+    amount of ribbons originating or ending up on respective variable.
+    Visually it is the thick portion at the end of ribbon. Proportion of
+    arch is calculated automatically based on amount coming in / going out,
+    total angle available and gap between two arch.
+
+    :class:`~SecretChord.Arch` inherits :class:`~SecretChord.CommonMethods`
+    and all of its methods.
+
+    Internally, it creates 'matplotlib.patches.Wedge' object and returns it
+    back for plotting. Simple arch can be made easily like following,
+
+    .. code-block:: python
+
+        from SecretChord import Arch
+        import matplotlib.pyplot as plt
+
+
+        ar = Arch(1, 30, 60, height=0.2)
+        _, ax = plt.subplots()
+        ax.add_patch(ar.wedge)
+        ax.set_aspect(1)
+        plt.show()
+
+    .. image:: images/arch.png
+        :width: 400
+        :align: center
+        :alt: Alternative text
+
+    Various parameters which you can freely adjust are shown in above
+    figure. All the angles are calculated from positive x-axis. In addition
+    to these, you can also adjust Wedge parameters as per matplotlib's
+    documentation.
+
+    """
+
     def __init__(self, radius: float,
                  start_angle: float, end_angle: float, *,
                  height: float,
                  **kwargs):
+        """
+        :param radius: radius from the center till outer edge of the arch
+        :param start_angle: start angle along positive x-axis
+        :param end_angle: end angle along positive x-axis
+        :param height: height of the arch (or width of the wedge)
+        :param kwargs: other named parameters which will be passed to Wedge
+        """
         super().__init__()
         self.radius = radius
         self.start_angle = start_angle
@@ -74,6 +143,9 @@ class Arch(CommonMethods):
 
     @property
     def wedge(self) -> Wedge:
+        """
+        Returns matplotlib.patches.Wedge which can be added to matplotlib.Axes
+        """
         if self._wedge is None:
             self._wedge = Wedge(center=self.center,
                                 r=self.radius,
@@ -88,6 +160,9 @@ class Arch(CommonMethods):
 
     @property
     def angle(self) -> float:
+        """
+        Total angle covered by the arch
+        """
         return self.end_angle - self.start_angle
 
     @property
@@ -95,12 +170,31 @@ class Arch(CommonMethods):
         return self._output
 
     def add_input_ribbon(self, ribbon, amount):
+        """
+        Add :class:`~SecretChord.Ribbon` which is coming inside the arch.
+        i.e. where arch key is represented at the second position in the data
+        tuple.
+
+        :param ribbon: :class:`~SecretChord.Ribbon` object
+        :param amount: amount covered by the ribbon object
+        """
         self._input[ribbon] = amount
 
     def add_output_ribbon(self, ribbon, amount):
+        """
+        Add :class:`~SecretChord.Ribbon` which is coming out of the arch.
+        i.e. where arch key is represented at the first position in the
+        data tuple.
+
+        :param ribbon: :class:`~SecretChord.Ribbon` object
+        :param amount: amount covered by the ribbon object
+        """
         self._output[ribbon] = amount
 
-    def get_order(self):
+    def get_order(self) -> tuple:
+        """
+        Get ordered list of input and output ribbons
+        """
         nodes_val = list(self.inputs.values())
         nodes_val.extend(list(self.outputs.values()))
         total = sum(nodes_val)
@@ -108,15 +202,23 @@ class Arch(CommonMethods):
         return nodes_val[:len(self.inputs)], nodes_val[len(self.inputs):]
 
     def get_angle(self, node, is_output):
+        """
+        Get start_angle for the given ribbon object near current arch
+
+        :param node: :class:`~SecretChord.Ribbon` object
+        :param is_output: Is ribbon coming out of arch
+        :return: start_angle for given :class:`~SecretChord.Ribbon` on
+           current :class:`~SecretChord.Arch`
+        """
         val_in, val_out = self.get_order()
         current = self.start_angle
-        val = val_in
-        val_ref = self.inputs
+        val = val_out
+        val_ref = self.outputs
         if is_output:
-            val_in.append(0)  # To avoid empty sum
-            current += sum(val_in)
-            val = val_out
-            val_ref = self.outputs
+            val_out.append(0)  # To avoid empty sum
+            current += sum(val_out)
+            val = val_in
+            val_ref = self.inputs
 
         for v in val_ref:
             if v == node:
@@ -129,6 +231,10 @@ class Arch(CommonMethods):
 
 
 class Ribbon(CommonMethods):
+    """
+    Ribbon
+    """
+
     def __init__(self, start_arch: Arch, end_arch: Arch, *,
                  start_radius: float, end_radius: float,
                  start_margin: float, end_margin: float,
@@ -143,6 +249,9 @@ class Ribbon(CommonMethods):
         self.kwargs = kwargs
         self._patch = None
         self.bend_center = None
+
+    def __repr__(self):
+        return f"Ribbon({self.start_arch},{self.end_arch})"
 
     @property
     def start_radius(self):
@@ -223,6 +332,10 @@ class Ribbon(CommonMethods):
 
 
 class ArchLabel(CommonMethods):
+    """
+    Arch Labels
+    """
+
     def __init__(self, arch_key: str, arch: Arch):
         super().__init__()
 
@@ -270,7 +383,7 @@ class ArchLabel(CommonMethods):
     @property
     def text(self):
         if self._text is None:
-            return self.arch_key
+            return str(self.arch_key)
         return self._text
 
     @text.setter

@@ -18,6 +18,12 @@ from SecretChord._elements import *
 
 
 class Track:
+    """
+    Tracks are the binding glue of ChordDiagrams which arranges
+    :class:`~SecretChord.Arch`, :class:`~SecretChord.Ribbon` and
+    :class:`~SecretChord.ArchLabel` together.
+    """
+
     def __init__(self):
         self._arch_amounts = defaultdict(int)
         self._arch = None
