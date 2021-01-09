@@ -89,6 +89,9 @@ class Arch(CommonMethods):
     :class:`~SecretChord.Arch` inherits :class:`~SecretChord.CommonMethods`
     and all of its methods.
 
+    In some R packages like 'circlize' arch are the part of 'sectors'
+    on given 'tracks'. Do not confuse the terminology.
+
     Internally, it creates 'matplotlib.patches.Wedge' object and returns it
     back for plotting. Simple arch can be made easily like following,
 
@@ -135,8 +138,8 @@ class Arch(CommonMethods):
         self.height = height
 
         self._wedge = None
-        self._input = OrderedDict()
-        self._output = OrderedDict()
+        self._destinations = OrderedDict()
+        self._origins = OrderedDict()
 
     def __repr__(self):
         return f"Arch({self.start_angle},{self.end_angle})"
@@ -155,8 +158,8 @@ class Arch(CommonMethods):
         return self._wedge
 
     @property
-    def inputs(self) -> OrderedDict:
-        return self._input
+    def destinations(self) -> OrderedDict:
+        return self._destinations
 
     @property
     def angle(self) -> float:
@@ -166,59 +169,60 @@ class Arch(CommonMethods):
         return self.end_angle - self.start_angle
 
     @property
-    def outputs(self) -> OrderedDict:
-        return self._output
+    def origins(self) -> OrderedDict:
+        return self._origins
 
-    def add_input_ribbon(self, ribbon, amount):
+    def add_as_destination(self, ribbon, amount):
         """
-        Add :class:`~SecretChord.Ribbon` which is coming inside the arch.
-        i.e. where arch key is represented at the second position in the data
-        tuple.
+        Add :class:`~SecretChord.Ribbon` whose destination is current
+        arch i.e. where arch key is represented at the second position in
+        the data tuple.
 
         :param ribbon: :class:`~SecretChord.Ribbon` object
         :param amount: amount covered by the ribbon object
         """
-        self._input[ribbon] = amount
+        self._destinations[ribbon] = amount
 
-    def add_output_ribbon(self, ribbon, amount):
+    def add_as_origin(self, ribbon, amount):
         """
-        Add :class:`~SecretChord.Ribbon` which is coming out of the arch.
+        Add :class:`~SecretChord.Ribbon` whose origin is current arch.
         i.e. where arch key is represented at the first position in the
         data tuple.
 
         :param ribbon: :class:`~SecretChord.Ribbon` object
         :param amount: amount covered by the ribbon object
         """
-        self._output[ribbon] = amount
+        self._origins[ribbon] = amount
 
     def get_order(self) -> tuple:
         """
-        Get ordered list of input and output ribbons
+        Get ordered list of origin and destination ribbons
         """
-        nodes_val = list(self.inputs.values())
-        nodes_val.extend(list(self.outputs.values()))
+        nodes_val = list(self.origins.values())
+        nodes_val.extend(list(self.destinations.values()))
         total = sum(nodes_val)
         nodes_val = [x * self.angle / total for x in nodes_val]
-        return nodes_val[:len(self.inputs)], nodes_val[len(self.inputs):]
+        return nodes_val[:len(self.origins)], nodes_val[
+                                              len(self.origins):]
 
-    def get_angle(self, node, is_output):
+    def get_angle(self, node, is_origin):
         """
         Get start_angle for the given ribbon object near current arch
 
         :param node: :class:`~SecretChord.Ribbon` object
-        :param is_output: Is ribbon coming out of arch
+        :param is_origin: If ribbon is originating from current arch
         :return: start_angle for given :class:`~SecretChord.Ribbon` on
            current :class:`~SecretChord.Arch`
         """
-        val_in, val_out = self.get_order()
+        val_origin, val_dest = self.get_order()
         current = self.start_angle
-        val = val_out
-        val_ref = self.outputs
-        if is_output:
-            val_out.append(0)  # To avoid empty sum
-            current += sum(val_out)
-            val = val_in
-            val_ref = self.inputs
+        val = val_dest
+        val_ref = self.destinations
+        if is_origin:
+            val_dest.append(0)  # To avoid empty sum
+            current += sum(val_dest)
+            val = val_origin
+            val_ref = self.origins
 
         for v in val_ref:
             if v == node:
@@ -232,48 +236,136 @@ class Arch(CommonMethods):
 
 class Ribbon(CommonMethods):
     """
-    Ribbon
+    In this library, Ribbons are the links of chord diagrams. They
+    originates from one arch and end at their destination arch. However,
+    current library provides you full flexibility. You can have ribbons
+    anywhere :)
+
+    :class:`~SecretChord.Ribbon` inherits :class:`~SecretChord.CommonMethods`
+    and all of its methods.
+
+    In some R packages like 'circlize' ribbons are called 'links'.
+
+    Internally, it creates 'matplotlib.patches.PathPatch' object and returns it
+    back for plotting. Creating ribbon from scratch needs little bit work.
+    However, you will rarely need to create it from the scratch.
+
+    .. code-block:: python
+
+        from SecretChord import Arch, Ribbon
+        import matplotlib.pyplot as plt
+
+        # Creates Arch
+        ar1 = Arch(1, 10, 20, height=0.1)
+        ar2 = Arch(1, 60, 70, height=0.1)
+        # Create Ribbon
+        rb = Ribbon(ar1, ar2, origin_radius=1, destination_radius=1,
+                    origin_margin=0.1, destination_margin=0.1)
+        # Add Ribbons to Arch
+        # Assuming data tuple is (ar1, ar2, 1)
+        ar1.add_as_origin(rb, 1)
+        ar2.add_as_destination(rb, 1)
+        _, ax = plt.subplots()
+        ax.add_patch(ar1.wedge)
+        ax.add_patch(ar2.wedge)
+        ax.add_patch(rb.patch)
+        ax.set_aspect(1)
+        plt.show()
+
+
+    Above code will generate two arch. Where origin arch is starting at 10
+    degree and ending at 20 degree while destination arch starts at 60 and
+    ends at 70. Both have radius of 1. When we do not provide radius,
+    it uses default (0,0). Then we create the Ribbon by providing all the
+    details and origin-destination arch objects.
+
+    One important step where you will get your 99% of "Wrong Ribbon
+    direction or Wrong Arch" Attribute errors is adding ribbon back to arch.
+    This looks counter-intuitive but for current designed, we need to do it.
+    This can be achieved by using 'Arch.add_as_destination()' and
+    'Arch.add_as_origin()' functions as shown in above code-block. It will
+    then generate the ribbon as shown in following figure.
+
+    .. image:: images/ribbon.png
+        :width: 400
+        :align: center
+        :alt: Alternative text
+
+    Various parameters which you can freely adjust are shown in above
+    figure. In addition to these, you can also adjust PathPatch parameters as
+    per matplotlib's documentation.
+
+    .. warning::
+      `origin_radius` and `destination_radius` are the distance
+      from the center of corresponding `origin_arch` and `destination_arch`
+      and NOT from `bending_center`. In above image, we have not specified any
+      center and hence all the centers are (0,0)
+
+    `bending_radius` defines the 3rd point of matplotlib's middle point
+     of Bézier curve. Internally it uses 'CURVE4'.
+
+
     """
 
-    def __init__(self, start_arch: Arch, end_arch: Arch, *,
-                 start_radius: float, end_radius: float,
-                 start_margin: float, end_margin: float,
+    def __init__(self, origin_arch: Arch, destination_arch: Arch, *,
+                 origin_radius: float, destination_radius: float,
+                 origin_margin: float, destination_margin: float,
                  **kwargs):
+        """
+        :param origin_arch: Arch from where current ribbon is originating
+        :param destination_arch: Arch where current ribbon is ending
+        :param origin_radius: length of ribbon from center of origin_arch
+        :param destination_radius: length of ribbon from center of
+            destination_arch
+        :param origin_margin: margin to be left near origin_arch
+        :param destination_margin: margin to be left near destination_arch
+        :param kwargs: named parameters which will be passed to PathPatch
+            object during plotting
+        """
         super().__init__()
-        self.start_arch = start_arch
-        self.end_arch = end_arch
-        self.start_margin = start_margin
-        self.end_margin = end_margin
-        self._start_radius = start_radius
-        self._end_radius = end_radius
+        self.origin_arch = origin_arch
+        self.destination_arch = destination_arch
+        self.origin_margin = origin_margin
+        self.destination_margin = destination_margin
+        self._origin_radius = origin_radius
+        self._destination_radius = destination_radius
         self.kwargs = kwargs
         self._patch = None
         self.bend_center = None
 
     def __repr__(self):
-        return f"Ribbon({self.start_arch},{self.end_arch})"
+        return f"Ribbon({self.origin_arch},{self.destination_arch})"
 
     @property
-    def start_radius(self):
-        if self._start_radius is None:
-            return self.start_arch.radius
-        return self._start_radius
+    def origin_radius(self) -> float:
+        """
+        length of ribbon from center of origin_arch. If not given, radius
+        from the origin_arch will be used.
+        """
+        if self._origin_radius is None:
+            return self.origin_arch.radius
+        return self._origin_radius
 
-    @start_radius.setter
-    def start_radius(self, value: float):
-        self._start_radius = value
+    @origin_radius.setter
+    def origin_radius(self, value: float):
+        self._origin_radius = value
 
     @property
-    def end_radius(self):
-        if self._end_radius is None:
-            return self.end_arch.radius
-        return self._end_radius
+    def destination_radius(self) -> float:
+        """
+        length of ribbon from center of destination_arch. If not given,
+        radius from the destination_arch will be used
+        """
+        if self._destination_radius is None:
+            return self.destination_arch.radius
+        return self._destination_radius
 
-    @end_radius.setter
-    def end_radius(self, value: float):
-        self._end_radius = value
+    @destination_radius.setter
+    def destination_radius(self, value: float):
+        self._destination_radius = value
 
-    def get_points(self, start, end, radius, margin, arch: Arch):
+    @staticmethod
+    def get_points(start, end, radius, margin, arch: Arch):
         er = radius - margin - arch.height  # Effective Radius
         w = Wedge(arch.center, er, start, end)
         data = []
@@ -315,16 +407,20 @@ class Ribbon(CommonMethods):
         return Path(verts, codes)
 
     @property
-    def patch(self):
+    def patch(self) -> PathPatch:
+        """
+        PatchPatch object which can be directed added to matplotlib axes.
+        """
         if self._patch is None:
-            sp1, sp2 = self.start_arch.get_angle(self, False)
-            ep1, ep2 = self.end_arch.get_angle(self, True)
+            sp1, sp2 = self.origin_arch.get_angle(self, True)
+            ep1, ep2 = self.destination_arch.get_angle(self, False)
 
-            sp = self.get_points(sp1, sp2, self.start_radius,
-                                 self.start_margin, self.start_arch)
+            sp = self.get_points(sp1, sp2, self.origin_radius,
+                                 self.origin_margin, self.origin_arch)
 
-            ep = self.get_points(ep1, ep2, self.end_radius,
-                                 self.end_margin, self.end_arch)
+            ep = self.get_points(ep1, ep2, self.destination_radius,
+                                 self.destination_margin,
+                                 self.destination_arch)
 
             pt = self.get_path(sp, ep)
             self._patch = PathPatch(pt, **self.kwargs)
@@ -333,12 +429,22 @@ class Ribbon(CommonMethods):
 
 class ArchLabel(CommonMethods):
     """
-    Arch Labels
+    Arch Labels are the labels which will be placed next to corresponding arch.
+
+    :class:`~SecretChord.ArchLabel` inherits
+    :class:`~SecretChord.CommonMethods`
+    and all of its methods. However, the radius field will be ignored.
+    Instead the radius from the corresponding arch will be used in all of
+    the calculations
+
     """
 
     def __init__(self, arch_key: str, arch: Arch):
+        """
+        :param arch_key: data variable associated with arch
+        :param arch: :class:`~SecretChord.Arch` object
+        """
         super().__init__()
-
         self.arch_key = arch_key
         self.arch = arch
         self.rotate = True

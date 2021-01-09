@@ -46,9 +46,9 @@ class Track:
         self.hide_ribbons = False
         self.hide_arch_labels = False
 
-        self.ribbon_start_margin = 0.05
-        self.ribbon_end_margin = 0.05
-        self.ribbon_color_from_source = True
+        self.ribbon_origin_margin = 0.05
+        self.ribbon_destination_margin = 0.05
+        self.ribbon_color_from_origin = True
         self.ribbon_alpha = 0.6
         self.ribbon_kwargs = {}
 
@@ -181,22 +181,22 @@ class Track:
             a1 = all_arc[d[0]]
             a2 = all_arc[d[1]]
             color_key = d[0]
-            if not self.ribbon_color_from_source:
+            if not self.ribbon_color_from_origin:
                 color_key = d[1]
             kwr = {"fc": self.arch_colors[color_key],
                    "alpha": self.ribbon_alpha}
             kwr = {**kwr, **self.ribbon_kwargs}
             rb = Ribbon(a1, a2,
-                        start_radius=None,
-                        end_radius=None,
-                        start_margin=self.ribbon_start_margin,
-                        end_margin=self.ribbon_end_margin, **kwr)
+                        origin_radius=None,
+                        destination_radius=None,
+                        origin_margin=self.ribbon_origin_margin,
+                        destination_margin=self.ribbon_destination_margin, **kwr)
 
             rb.center = self.center
 
             r_key = f"{d}-{len(all_ribbons)}"
-            a2.add_output_ribbon(rb, d[2])
-            a1.add_input_ribbon(rb, d[2])
+            a1.add_as_origin(rb, d[2])
+            a2.add_as_destination(rb, d[2])
             all_ribbons[r_key] = rb
 
         self._arch = all_arc
