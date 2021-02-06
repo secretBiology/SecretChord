@@ -22,6 +22,24 @@ class Track:
     Tracks are the binding glue of ChordDiagrams which arranges
     :class:`~SecretChord.Arch`, :class:`~SecretChord.Ribbon` and
     :class:`~SecretChord.ArchLabel` together.
+
+    Track provides the finer control over your graph.
+
+    .. code-block:: python
+
+        from SecretChord import ChordDiagram
+        import matplotlib.pyplot as plt
+
+        data = [("origin", "destination", 20)]
+
+        chord = ChordDiagram(data)
+        # You can access track by `ChordDiagram.track`
+        chord.track.arch_gap_angle = 90  # Gap between two arch
+        chord.draw(pad_factor=1.5)  # Pad factor controls the padding
+        plt.savefig("track.png")
+        plt.show()
+
+
     """
 
     def __init__(self):
@@ -190,7 +208,8 @@ class Track:
                         origin_radius=None,
                         destination_radius=None,
                         origin_margin=self.ribbon_origin_margin,
-                        destination_margin=self.ribbon_destination_margin, **kwr)
+                        destination_margin=self.ribbon_destination_margin,
+                        **kwr)
 
             rb.center = self.center
 

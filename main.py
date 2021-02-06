@@ -37,17 +37,14 @@ def run():
     plt.show()
 
 
-from SecretChord import Arch, ArchLabel
+from SecretChord import ChordDiagram
 import matplotlib.pyplot as plt
 
-# Creates Arch
-ar = Arch(0.7, 30, 60, height=0.1)
-# Create ArchLabel
-al = ArchLabel("arch_key", ar)
-# here 'arch_key' is used as an placeholder.
-_, ax = plt.subplots()
-ax.add_patch(ar.wedge)
-ax.add_artist(al.annotation)
-ax.set_aspect(1)
-plt.savefig("label.png")
+data = [("origin", "destination", 20)]
+
+chord = ChordDiagram(data)
+# You can access track by `ChordDiagram.track`
+chord.track.arch_gap_angle = 90  # Gap between two arch
+chord.draw(pad_factor=1.5)  # Pad factor controls the padding
+plt.savefig("track.png")
 plt.show()

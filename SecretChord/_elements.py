@@ -117,6 +117,10 @@ class Arch(CommonMethods):
     to these, you can also adjust Wedge parameters as per matplotlib's
     documentation.
 
+    In addition to all the options available here, you can use
+    `Arch.update()` method to add any additional named parameters
+    which will be passed to matplotlib.patches.Wedge
+
     """
 
     def __init__(self, radius: float,
@@ -301,10 +305,13 @@ class Ribbon(CommonMethods):
       and NOT from `bending_center`. In above image, we have not specified any
       center and hence all the centers are (0,0)
 
-    `bending_radius` defines the 3rd point of matplotlib's middle point
-     of Bézier curve. Internally it uses 'CURVE4'.
 
+    bending_radius defines the 3rd point of matplotlib's middle point
+    of Bézier curve. Internally it uses 'CURVE4'.
 
+    In addition to all the options available here, you can use
+    `Ribbon.update()` method to add any additional named parameters
+    which will be passed to matplotlib.patches.PathPatch
     """
 
     def __init__(self, origin_arch: Arch, destination_arch: Arch, *,
@@ -437,6 +444,30 @@ class ArchLabel(CommonMethods):
     Instead the radius from the corresponding arch will be used in all of
     the calculations
 
+    Following parameters can be adjusted directly,
+
+     * rotate: If True, labels will be rotated along the radius (default: True)
+     * add_arrow: If True, adds `arrowprops` to the annotation which will \
+     create the labels away from the chord diagram and \
+     corresponding arrows will be added to point the arch
+     * arrowstyle: arrow style of annotations. Only applies when add_arrow\
+     is True. (default: '->')
+     * arrow_label_x_factor: this factor will be multiplied to x value \
+     while placing the label with arrow. (default: 1.2)
+     * arrow_label_y_factor: this factor will be multiplied to y value \
+     while placing the label with arrow. (default: 1.2)
+     * rotation_mode: for text annotation (default: anchor)
+     * wrap_words: Numbers of words after which label should wrap. Number \
+     of words are calculated by splitting text with space. (default: Infinite)
+     * label_gap: Gap between arch and label
+
+
+    In addition to all the options available here, you can use
+    `ArchLabel.update()` method to add any additional named parameters
+    which will be passed to matplotlib.text.Annotation.
+
+
+
     """
 
     def __init__(self, arch_key: str, arch: Arch):
@@ -467,6 +498,10 @@ class ArchLabel(CommonMethods):
 
     @property
     def radius(self):
+        """
+        Distance of label from the arch center.
+        (default : arch.radius + label_gap)
+        """
         if self._radius is None:
             return self.arch.radius + self.label_gap
         return self._radius
@@ -477,6 +512,9 @@ class ArchLabel(CommonMethods):
 
     @property
     def angle(self):
+        """
+        Angle of rotation of text
+        """
         if self._angle is None:
             return self.arch.start_angle + (self.arch.end_angle -
                                             self.arch.start_angle) / 2
@@ -488,6 +526,13 @@ class ArchLabel(CommonMethods):
 
     @property
     def text(self):
+        """
+        Text to display.
+
+        If not provided, arch key from the data tuple will
+        be used. For example, if your data is ("apple", "orange", 2),
+        the two arches will have key (as well as text) as "apple" and "orange".
+        """
         if self._text is None:
             return str(self.arch_key)
         return self._text
@@ -583,6 +628,9 @@ class ArchLabel(CommonMethods):
 
     @property
     def annotation(self):
+        """
+        Reruns the matplotlib.text.Annotation associated with this ArchLabel.
+        """
         if self._annotation is None:
             if self.add_arrow:
                 self._with_arrow()
